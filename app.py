@@ -43,15 +43,17 @@ def cargar_datos():
     data = worksheet.get_all_records()
     df = pd.DataFrame(data)
 
-    # --- FILTRO MAESTRO DE DATOS ABIERTOS ---
-    col_estado = 'ESTADO_SN'          
-    col_atencion = 'ESTADO_ATENCION'  
+    # --- FILTRO MAESTRO (PARA TODO EL DASHBOARD) ---
+    col_estado = 'ESTADO_SN'          # Columna N
+    col_atencion = 'ESTADO_ATENCION'  # Columna O
 
+    # 1. Limpieza y exclusión de Cerrados en Columna N
     if col_estado in df.columns:
         df[col_estado] = df[col_estado].astype(str).str.strip() 
         estados_excluidos = ['CERRADO', 'CERRADO COMPLETO', 'RESUELTO', 'CERRADO INCOMPLETO', 'REVISAR']
         df = df[~df[col_estado].str.upper().isin(estados_excluidos)]
     
+    # 2. EXCLUSIÓN GLOBAL DE "OTRO SERVICIO" en Columna O
     if col_atencion in df.columns:
         df[col_atencion] = df[col_atencion].astype(str).str.strip()
         df = df[df[col_atencion].str.upper() != 'OTRO SERVICIO']
@@ -78,7 +80,7 @@ try:
         # ==========================================
         # LÓGICA DE KPIs (TARJETAS)
         # ==========================================
-        # 1. Filtro base de Casos en gestión (Columna N)
+        # Filtro base: Gestión activa (Asignado, En espera, En Progreso)
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
             filtro_gestion = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
@@ -87,7 +89,7 @@ try:
             filtro_gestion = pd.Series(False, index=df_mostrar.index)
             t_total_abiertos = 0
 
-        # 2. Filtros por GRUPO_ASIGNADO (Columna U)
+        # Filtros por GRUPO_ASIGNADO (Columna U)
         if 'GRUPO_ASIGNADO' in df_mostrar.columns:
             df_mostrar['GRUPO_ASIGNADO'] = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip()
             g_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
@@ -97,18 +99,16 @@ try:
             t_cctv = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_cctv)])
             t_dcero = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_dcero)])
             t_secomp = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_secomp)])
-            
             t_en_ejecucion = t_dcero + t_secomp
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
 
-        # --- TARJETA SIN ESTADO: GESTIÓN ACTIVA (N) Y PROVEEDOR VACÍO (S) ---
+        # --- TARJETA PENDIENTES: Gestión Activa (N) y Proveedor Vacío (S) ---
         if 'PROVEDDOR' in df_mostrar.columns:
-            # Filtro: Columna N en gestión Y Columna S vacía
             filtro_prov_vacio = df_mostrar['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])
-            t_sin_estado = len(df_mostrar[filtro_gestion & filtro_prov_vacio])
+            t_pendientes = len(df_mostrar[filtro_gestion & filtro_prov_vacio])
         else:
-            t_sin_estado = 0
+            t_pendientes = 0
 
         # --- DIBUJAR LAS TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
@@ -117,7 +117,7 @@ try:
         with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#4DA6FF"), unsafe_allow_html=True) 
         with kpi4: st.markdown(crear_tarjeta("SECOMP", t_secomp, "#4DA6FF"), unsafe_allow_html=True) 
         with kpi5: st.markdown(crear_tarjeta("En ejecución", t_en_ejecucion, "#D92B38"), unsafe_allow_html=True)
-        with kpi6: st.markdown(crear_tarjeta("Sin Estado", t_sin_estado, "#1E2433"), unsafe_allow_html=True)
+        with kpi6: st.markdown(crear_tarjeta("PENDIENTES", t_pendientes, "#1E2433"), unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -139,16 +139,18 @@ try:
             if 'ESTADO_SN' in df_mostrar.columns:
                 conteo_estados = df_mostrar['ESTADO_SN'].value_counts().reset_index()
                 conteo_estados.columns = ['Estado', 'Cantidad']
-                fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', title="<b>ESTADO (SOLO ABIERTOS)</b>", hole=0.6, color_discrete_sequence=paleta_colores)
+                fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', title="<b>ESTADO (SOLO GESTIÓN)</b>", hole=0.6, color_discrete_sequence=paleta_colores)
                 fig2.update_layout(**layout_blanco, showlegend=False)
                 fig2.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color='white', width=2)))
                 st.plotly_chart(fig2, use_container_width=True)
 
         with graf_sup3:
             if 'PROVEDDOR' in df_mostrar.columns:
-                conteo_prov = df_mostrar['PROVEDDOR'].value_counts().reset_index()
+                # Filtrar vacíos para el gráfico de proveedores
+                df_prov = df_mostrar[~df_mostrar['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])]
+                conteo_prov = df_prov['PROVEDDOR'].value_counts().reset_index()
                 conteo_prov.columns = ['Proveedor', 'Cantidad']
-                fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor', title="<b>ASIGNACIÓN ACTUAL</b>", hole=0.4, color_discrete_sequence=paleta_colores)
+                fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor', title="<b>PROVEEDORES ASIGNADOS</b>", hole=0.4, color_discrete_sequence=paleta_colores)
                 fig3.update_layout(**layout_blanco, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
                 fig3.update_traces(textposition='inside', textinfo='percent', marker=dict(line=dict(color='white', width=2)))
                 st.plotly_chart(fig3, use_container_width=True)
