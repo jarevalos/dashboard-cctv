@@ -31,19 +31,21 @@ def cargar_datos():
     df = pd.DataFrame(data)
 
     # ==========================================
-    # FILTRO MAESTRO DE DATOS ABIERTOS
+    # FILTRO MAESTRO DE DATOS (LIMPIEZA INICIAL)
     # ==========================================
-    col_estado = 'ESTADO_SN'          # Columna N
-    col_atencion = 'ESTADO_ATENCION'  # Columna O
+    col_estado = 'ESTADO_SN'          
+    col_atencion = 'ESTADO_ATENCION'  
 
-    # 1. Filtrar los estados cerrados en la Columna N
-    estados_excluidos = ['Cerrado', 'Cerrado completo', 'Resuelto', 'Cerrado Incompleto', 'REVISAR']
+    # 1. Limpiar y filtrar la columna N (ESTADO_SN)
     if col_estado in df.columns:
-        df = df[~df[col_estado].isin(estados_excluidos)]
+        df[col_estado] = df[col_estado].astype(str).str.strip() 
+        estados_excluidos = ['CERRADO', 'CERRADO COMPLETO', 'RESUELTO', 'CERRADO INCOMPLETO', 'REVISAR']
+        df = df[~df[col_estado].str.upper().isin(estados_excluidos)]
     
-    # 2. Filtrar "OTRO SERVICIO" de la Columna O
+    # 2. Limpiar y filtrar la columna O (ESTADO_ATENCION)
     if col_atencion in df.columns:
-        df = df[df[col_atencion] != 'OTRO SERVICIO']
+        df[col_atencion] = df[col_atencion].astype(str).str.strip()
+        df = df[df[col_atencion].str.upper() != 'OTRO SERVICIO']
 
     return df
 
@@ -64,15 +66,26 @@ try:
     with tab1:
         df_mostrar = df.copy()
 
-        t_abiertos = len(df_mostrar)
+        # ==========================================
+        # CÁLCULO DE KPIs EXACTOS
+        # ==========================================
+        # 1. Casos Abiertos: SOLO "Asignado" y "En espera"
+        if 'ESTADO_SN' in df_mostrar.columns:
+            estados_backlog = ['ASIGNADO', 'EN ESPERA']
+            t_abiertos = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)])
+        else:
+            t_abiertos = 0
+
         t_cctv = len(df_mostrar) 
-        
-        # Seguros por si alguna columna viene vacía o cambia de nombre
         t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
         t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
-        t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'] == 'En Proceso']) if 'ESTADO_SN' in df_mostrar.columns else 0
+        
+        # Asumiendo que "En ejecución" es igual a "En Proceso"
+        t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
+        
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
+        # --- DIBUJAR LAS TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         
         with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#008080"), unsafe_allow_html=True)
@@ -84,6 +97,7 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # --- GRÁFICOS ---
         graf_sup1, graf_sup2, graf_sup3 = st.columns(3)
         layout_transparente = dict(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#e0e0e0', height=280, margin=dict(l=10, r=10, t=30, b=10))
         
