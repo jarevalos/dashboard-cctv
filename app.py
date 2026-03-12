@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 import plotly.express as px
 
 # 1. Configuración de la página
-st.set_page_config(page_title="Dashboard CCTV", page_icon="🍕", layout="wide")
+st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
 
 # ==========================================
 # CSS ESTILO POWER BI / EXCEL CORPORATIVO
@@ -85,24 +85,39 @@ try:
     with tab1:
         df_mostrar = df.copy()
 
-        # KPIs
+        # ==========================================
+        # LÓGICA DE KPIs
+        # ==========================================
+        
+        # 1. Filtro base de Casos Abiertos (Backlog)
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
-            t_abiertos = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)])
-        else: t_abiertos = 0
+            filtro_abiertos = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
+            t_abiertos = len(df_mostrar[filtro_abiertos])
+        else: 
+            filtro_abiertos = pd.Series(False, index=df_mostrar.index)
+            t_abiertos = 0
 
-        t_cctv = len(df_mostrar) 
+        # 2. CCTV: Casos abiertos + GRUPO_ASIGNADO específico
+        if 'GRUPO_ASIGNADO' in df_mostrar.columns:
+            grupo_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
+            # Aplicamos ambos filtros al mismo tiempo
+            filtro_grupo_cctv = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == grupo_cctv
+            t_cctv = len(df_mostrar[filtro_abiertos & filtro_grupo_cctv])
+        else:
+            t_cctv = 0
+
+        # Resto de KPIs
         t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
         t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
         t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
         # --- FILA DE TARJETAS ---
-        # Usamos colores como los de la imagen: Rojos, Azules, Negros
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
-        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#D92B38"), unsafe_allow_html=True) # Rojo
-        with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) # Azul oscuro
-        with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#4DA6FF"), unsafe_allow_html=True) # Celeste
+        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#D92B38"), unsafe_allow_html=True) 
+        with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) 
+        with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#4DA6FF"), unsafe_allow_html=True) 
         with kpi4: st.markdown(crear_tarjeta("SECOMP", t_secomp, "#4DA6FF"), unsafe_allow_html=True) 
         with kpi5: st.markdown(crear_tarjeta("En ejecución", t_ejecucion, "#D92B38"), unsafe_allow_html=True)
         with kpi6: st.markdown(crear_tarjeta("Sin Estado", t_sin_estado, "#1E2433"), unsafe_allow_html=True)
@@ -111,17 +126,7 @@ try:
 
         # --- GRÁFICOS ESTILO TARJETA BLANCA ---
         graf_sup1, graf_sup2, graf_sup3 = st.columns(3)
-        
-        # Configuración para que el gráfico parezca una tarjeta blanca
-        layout_blanco = dict(
-            paper_bgcolor='white', 
-            plot_bgcolor='white', 
-            font_color='#333333', 
-            height=320, 
-            margin=dict(l=20, r=20, t=50, b=20),
-            title_font=dict(size=14, color='#1E2433')
-        )
-        # Paleta de colores inspirada en tu imagen (Rojos y Azules)
+        layout_blanco = dict(paper_bgcolor='white', plot_bgcolor='white', font_color='#333333', height=320, margin=dict(l=20, r=20, t=50, b=20), title_font=dict(size=14, color='#1E2433'))
         paleta_colores = ['#1F4E79', '#D92B38', '#4DA6FF', '#8CA3B5', '#1E2433']
         
         with graf_sup1:
@@ -130,7 +135,7 @@ try:
                 top_locales.columns = ['Local', 'Cantidad']
                 fig1 = px.bar(top_locales, x='Local', y='Cantidad', title="<b>TOP 10 LOCALES CRÍTICOS</b>", text_auto=True, color_discrete_sequence=['#1F4E79'])
                 fig1.update_layout(**layout_blanco)
-                fig1.update_yaxes(showgrid=True, gridcolor='#f0f0f0') # Líneas de fondo muy sutiles
+                fig1.update_yaxes(showgrid=True, gridcolor='#f0f0f0') 
                 st.plotly_chart(fig1, use_container_width=True)
 
         with graf_sup2:
