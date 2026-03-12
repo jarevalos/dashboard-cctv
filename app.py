@@ -3,7 +3,6 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 import plotly.express as px
-from datetime import datetime
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
@@ -48,16 +47,13 @@ def cargar_datos():
     df = pd.DataFrame(data)
 
     # --- FILTRO MAESTRO (REGLAS KOKE) ---
-    # Convertimos a string y mayúsculas de forma segura elemento por elemento
     col_n = 'ESTADO_SN'
     col_o = 'ESTADO_ATENCION'
 
     if col_n in df.columns and col_o in df.columns:
-        # 1. Filtro Columna N: Solo Abiertos
         estados_validos = ['ASIGNADO', 'EN PROGRESO', 'EN ESPERA']
         mask_n = df[col_n].astype(str).str.upper().str.strip().isin(estados_validos)
         
-        # 2. Filtro Columna O: Excluir Duplicados y Otro Servicio
         excluir_o = ['DUPLICADO', 'OTRO SERVICIO']
         mask_o = ~df[col_o].astype(str).str.upper().str.strip().isin(excluir_o)
         
@@ -83,7 +79,6 @@ try:
         # --- CÁLCULO DE KPIs ---
         t_total_abiertos = len(df)
         
-        # Filtros por GRUPO_ASIGNADO (Columna U)
         col_u = 'GRUPO_ASIGNADO'
         if col_u in df.columns:
             df[col_u] = df[col_u].astype(str).str.strip()
@@ -94,7 +89,6 @@ try:
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
         
-        # Pendientes (Columna S: PROVEDDOR vacía)
         col_s = 'PROVEDDOR'
         if col_s in df.columns:
             t_pendientes = len(df[df[col_s].astype(str).str.strip().isin(['', 'nan', 'None'])])
@@ -108,47 +102,49 @@ try:
         with kpi3: st.markdown(crear_tarjeta_pro("Soporte Dcero", t_dcero, "#3498DB"), unsafe_allow_html=True) 
         with kpi4: st.markdown(crear_tarjeta_pro("Soporte Secomp", t_secomp, "#5DADE2"), unsafe_allow_html=True) 
         with kpi5: st.markdown(crear_tarjeta_pro("En Ejecución", t_en_ejecucion, "#F39C12"), unsafe_allow_html=True)
-        with kpi6: st.markdown(crear_tarjeta_pro("Pendientes", t_pendientes, "#34495E"), unsafe_allow_html=True)
+        with kpi6: st.markdown(crear_tarjeta_pro("PENDIENTES", t_pendientes, "#34495E"), unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ==========================================
-        # GRÁFICO 1: ANTIGÜEDAD DEL REPORTE (COLUMNA J)
+        # GRÁFICO 1: ANTIGÜEDAD POR MES (COLUMNA J)
         # ==========================================
-        # CAMBIA 'FECHA_REPORTE' por el nombre real de tu columna J
-        col_j = 'FECHA_REPORTE' 
+        col_j = 'FECHA_REPORTE' # Asegúrate que este sea el nombre de la columna J
         
         if col_j in df.columns:
-            # Convertir a fecha real
+            # 1. Convertir a fecha
             df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
-            
-            # Quitar errores de fecha si los hay
             df_fechas = df.dropna(subset=['FECHA_DT']).copy()
             
-            # Calcular días
-            hoy = datetime.now()
-            df_fechas['Dias'] = (hoy - df_fechas['FECHA_DT']).dt.days
+            # 2. Crear etiqueta de Mes/Año y valor para ordenar
+            # Usamos el nombre del mes abreviado y el año (ej: ago 25)
+            df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
+            df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
             
-            # Agrupar y ordenar
-            ant_df = df_fechas['Dias'].value_counts().reset_index()
-            ant_df.columns = ['Días', 'Cantidad']
-            ant_df = ant_df.sort_values('Días')
+            # 3. Agrupar
+            mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad')
+            mensual_df = mensual_df.sort_values('Orden')
 
-            fig = px.bar(
-                ant_df, x='Días', y='Cantidad', 
-                title="<b>Antigüedad de Reportes (Días)</b>",
+            # 4. Gráfico
+            fig_mes = px.bar(
+                mensual_df, x='Periodo', y='Cantidad',
+                title="<b>Pendientes por Mes de Apertura</b>",
                 text_auto=True,
-                color_discrete_sequence=['#2980B9']
+                color_discrete_sequence=['#008080'] # Color similar a la imagen
             )
             
-            fig.update_layout(
-                paper_bgcolor='white', plot_bgcolor='white',
-                height=300, margin=dict(l=10, r=10, t=40, b=10),
-                xaxis_title="Días de atraso", yaxis_title="N° Casos"
+            fig_mes.update_layout(
+                paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)',
+                height=300, margin=dict(l=10, r=10, t=50, b=10),
+                xaxis_title=None, yaxis_title=None,
+                showlegend=False
             )
-            st.plotly_chart(fig, use_container_width=True)
+            fig_mes.update_traces(textposition='outside', marker_line_width=0)
+            fig_mes.update_yaxes(showgrid=True, gridcolor='#f0f0f0')
+
+            st.plotly_chart(fig_mes, use_container_width=True)
         else:
-            st.info(f"Columna '{col_j}' no detectada. Verifica el encabezado de la columna J.")
+            st.info(f"Columna J ('{col_j}') no encontrada.")
 
     with tab2:
         st.header("Análisis por Local")
@@ -159,4 +155,4 @@ try:
             st.dataframe(res[['REPORTE', 'ESTADO_SN', 'PROVEDDOR', 'COMENTARIO']], use_container_width=True, hide_index=True)
 
 except Exception as e:
-    st.error(f"Error en la aplicación: {e}")
+    st.error(f"Error: {e}")
