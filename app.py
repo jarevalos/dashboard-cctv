@@ -5,63 +5,44 @@ from google.oauth2.service_account import Credentials
 import plotly.express as px
 
 # 1. Configuración de la página
-st.set_page_config(page_title="Dashboard CCTV Pro", page_icon="📹", layout="wide")
+st.set_page_config(page_title="CCTV Control Center", page_icon="📹", layout="wide")
 
 # ==========================================
-# CSS DISEÑO PROFESIONAL (ESTILO MODERNO)
+# CSS ESTILO DASHPRO (GLASSMORPHISM)
 # ==========================================
 st.markdown("""
     <style>
-    /* Fondo gris ultra suave */
-    .stApp { background-color: #F4F7F9 !important; }
-    
-    /* Eliminar márgenes superiores */
-    .block-container { 
-        padding-top: 0.5rem !important; 
-        padding-bottom: 0rem !important; 
-        max-width: 98% !important; 
+    /* Fondo con degradado sutil */
+    .stApp {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
     }
     
-    /* Tarjetas de KPI Estilizadas */
-    .card-pro {
-        background-color: white;
-        padding: 12px 5px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        text-align: center;
-        border: 1px solid #E1E8ED;
-        margin-bottom: 10px;
+    /* Barra lateral estilizada */
+    section[data-testid="stSidebar"] {
+        background-color: #1E2433 !important;
+        border-right: 1px solid #34495E;
     }
-    
-    .card-label { 
-        margin: 0; 
-        font-size: 0.65rem !important; 
-        color: #657786; 
-        font-weight: 700; 
-        text-transform: uppercase; 
-        letter-spacing: 0.5px;
-    }
-    
-    .card-value { 
-        margin: 0; 
-        font-size: 1.6rem !important; 
-        color: #14171A; 
-        font-weight: 800; 
-        line-height: 1.1; 
+    section[data-testid="stSidebar"] .stMarkdown h2, section[data-testid="stSidebar"] .stMarkdown p {
+        color: white !important;
     }
 
-    /* Ocultar elementos de Streamlit */
+    /* Contenedores Blancos con Sombra (Cards) */
+    .css-card {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        margin-bottom: 20px;
+    }
+
+    /* Títulos y Etiquetas */
+    .kpi-label { color: #657786; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
+    .kpi-value { color: #14171A; font-size: 1.8rem; font-weight: 800; line-height: 1; }
+
+    /* Ocultar elementos nativos */
     header {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* Contenedores de gráficos */
-    .plot-container {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        border: 1px solid #E1E8ED;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -92,130 +73,99 @@ def cargar_datos():
 
     return df
 
-def crear_tarjeta_pro(titulo, valor, color_borde):
-    html = f"""
-    <div class="card-pro" style="border-top: 4px solid {color_borde};">
-        <p class="card-label">{titulo}</p>
-        <h2 class="card-value">{valor}</h2>
+def crear_kpi_pro(titulo, valor, color_top):
+    return f"""
+    <div style="background: white; padding: 15px; border-radius: 12px; border-top: 5px solid {color_top}; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <p class="kpi-label">{titulo}</p>
+        <h2 class="kpi-value">{valor}</h2>
     </div>
     """
-    return html
 
 try:
     df = cargar_datos()
-    
-    tab1, tab2 = st.tabs(["📊 Vista Ejecutiva", "🏢 Detalle por Local"])
-    
-    with tab1:
-        # --- CÁLCULO DE DATOS ---
-        t_total_abiertos = len(df)
-        col_u = 'GRUPO_ASIGNADO'
-        col_s = 'PROVEDDOR'
+
+    # --- BARRA LATERAL (SIDEBAR) ---
+    with st.sidebar:
+        st.markdown("<h2 style='text-align: center;'>📹 DashPro CCTV</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; font-size: 0.8rem;'>Centro de Control Nacional</p>", unsafe_allow_html=True)
+        st.divider()
+        st.markdown("### Filtros Rápidos")
+        tiendas = sorted(df['LOCAL'].unique()) if 'LOCAL' in df.columns else []
+        local_sel = st.multiselect("Seleccionar Locales", tiendas)
         
-        if col_u in df.columns:
-            df[col_u] = df[col_u].astype(str).str.strip()
-            g_cctv_txt = 'Soporte Circuito Cerrado de Televisin (CCTV)'
-            g_dcero_txt = 'Soporte Dcero'
-            g_secomp_txt = 'Soporte Secomp'
+        st.divider()
+        st.info("Datos actualizados automáticamente desde Google Sheets.")
+
+    # Filtrar DF si hay selección
+    if local_sel:
+        df = df[df['LOCAL'].isin(local_sel)]
+
+    # --- CONTENIDO PRINCIPAL ---
+    # Fila de KPIs
+    t_total = len(df)
+    col_u = 'GRUPO_ASIGNADO'
+    col_s = 'PROVEDDOR'
+    
+    t_cctv = len(df[df[col_u] == 'Soporte Circuito Cerrado de Televisin (CCTV)']) if col_u in df.columns else 0
+    t_dcero = len(df[df[col_u] == 'Soporte Dcero']) if col_u in df.columns else 0
+    t_secomp = len(df[df[col_u] == 'Soporte Secomp']) if col_u in df.columns else 0
+    t_en_ejecucion = t_dcero + t_secomp
+    t_pendientes = len(df[df[col_s].astype(str).str.strip().isin(['', 'nan', 'None'])]) if col_s in df.columns else 0
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1: st.markdown(crear_kpi_pro("Total Abiertos", t_total, "#1E2433"), unsafe_allow_html=True)
+    with k2: st.markdown(crear_kpi_pro("Interno CCTV", t_cctv, "#1DA1F2"), unsafe_allow_html=True)
+    with k3: st.markdown(crear_kpi_pro("Externo Dcero", t_dcero, "#71C9F8"), unsafe_allow_html=True)
+    with k4: st.markdown(crear_kpi_pro("Externo Secomp", t_secomp, "#A5D8FF"), unsafe_allow_html=True)
+    with k5: st.markdown(crear_kpi_pro("Pendientes", t_pendientes, "#E0245E"), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Fila de Gráficos en contenedores estilizados
+    c1, c2 = st.columns(2)
+    col_j = 'FECHA_REPORTE'
+
+    with c1:
+        st.markdown('<div class="css-card">', unsafe_allow_html=True)
+        if col_j in df.columns:
+            df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
+            df_fechas = df.dropna(subset=['FECHA_DT']).copy()
+            df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
+            df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
+            mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad').sort_values('Orden')
             
-            t_cctv = len(df[df[col_u] == g_cctv_txt])
-            t_dcero = len(df[df[col_u] == g_dcero_txt])
-            t_secomp = len(df[df[col_u] == g_secomp_txt])
-            t_en_ejecucion = t_dcero + t_secomp
-        else:
-            t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
-        
-        if col_s in df.columns:
-            t_pendientes = len(df[df[col_s].astype(str).str.strip().isin(['', 'nan', 'None'])])
-        else:
-            t_pendientes = 0
+            fig_mes = px.line(mensual_df, x='Periodo', y='Cantidad', title="<b>Tendencia: Antigüedad del Backlog</b>", markers=True)
+            fig_mes.update_traces(line_color='#1DA1F2', line_width=3, marker=dict(size=8, color='white', line=dict(width=2, color='#1DA1F2')))
+            fig_mes.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=0,r=0,t=40,b=0))
+            st.plotly_chart(fig_mes, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- FILA DE KPIs (5 Tarjetas principales) ---
-        kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
-        with kpi1: st.markdown(crear_tarjeta_pro("Total Abiertos", t_total_abiertos, "#E0245E"), unsafe_allow_html=True) 
-        with kpi2: st.markdown(crear_tarjeta_pro("Soporte CCTV", t_cctv, "#1DA1F2"), unsafe_allow_html=True) 
-        with kpi3: st.markdown(crear_tarjeta_pro("Soporte Dcero", t_dcero, "#71C9F8"), unsafe_allow_html=True) 
-        with kpi4: st.markdown(crear_tarjeta_pro("Soporte Secomp", t_secomp, "#A5D8FF"), unsafe_allow_html=True) 
-        with kpi5: st.markdown(crear_tarjeta_pro("En Ejecución", t_en_ejecucion, "#F58220"), unsafe_allow_html=True)
+    with c2:
+        st.markdown('<div class="css-card">', unsafe_allow_html=True)
+        if col_j in df.columns and col_u in df.columns:
+            df_apilado = df.dropna(subset=['FECHA_DT']).copy()
+            df_apilado['Periodo'] = df_apilado['FECHA_DT'].dt.strftime('%b %y').str.lower()
+            df_apilado['Orden'] = df_apilado['FECHA_DT'].dt.to_period('M')
+            
+            def clasificar(fila):
+                if fila in ['Soporte Dcero', 'Soporte Secomp']: return 'Ejecución'
+                elif fila == 'Soporte Circuito Cerrado de Televisin (CCTV)': return 'Pendiente'
+                else: return 'Otros'
+            
+            df_apilado['Categoria'] = df_apilado[col_u].apply(clasificar)
+            mensual_grp = df_apilado[df_apilado['Categoria'] != 'Otros'].groupby(['Orden', 'Periodo', 'Categoria']).size().reset_index(name='Cantidad').sort_values('Orden')
+            
+            fig_bar = px.bar(mensual_grp, x='Periodo', y='Cantidad', color='Categoria', title="<b>Distribución: Ejecución vs Pendiente</b>",
+                             color_discrete_map={'Pendiente': '#008080', 'Ejecución': '#F58220'}, barmode='group')
+            fig_bar.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=0,r=0,t=40,b=0), legend=dict(orientation="h", y=1.1, x=1))
+            st.plotly_chart(fig_bar, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
-
-        # ========================================================
-        # BLOQUE DE GRÁFICOS PRO
-        # ========================================================
-        graf_col1, graf_col2 = st.columns(2)
-        col_j = 'FECHA_REPORTE'
-        color_pendiente = "#008080" # Turquesa Pro
-        color_ejecucion = "#F58220" # Naranja Pro
-
-        # --- GRÁFICO 1: ANTIGUEDAD DEL BACKLOG ---
-        with graf_col1:
-            if col_j in df.columns:
-                df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
-                df_fechas = df.dropna(subset=['FECHA_DT']).copy()
-                df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
-                df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
-                mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad')
-                mensual_df = mensual_df.sort_values('Orden')
-
-                fig_mes = px.bar(
-                    mensual_df, x='Periodo', y='Cantidad', 
-                    title="<b>Antigüedad del backlog</b>", 
-                    text_auto=True, 
-                    color_discrete_sequence=[color_pendiente]
-                )
-                fig_mes.update_layout(
-                    paper_bgcolor='white', plot_bgcolor='white', 
-                    height=400, margin=dict(l=10, r=10, t=50, b=10),
-                    xaxis_title=None, yaxis_title=None,
-                    font=dict(family="Arial", size=12)
-                )
-                fig_mes.update_yaxes(showgrid=True, gridcolor='#F0F2F5')
-                fig_mes.update_traces(textposition='outside', marker_line_width=0)
-                st.plotly_chart(fig_mes, use_container_width=True)
-
-        # --- GRÁFICOS 2: REPORTES EN EJECUCION ---
-        with graf_col2:
-            if col_j in df.columns and col_u in df.columns:
-                df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
-                df_apilado = df.dropna(subset=['FECHA_DT']).copy()
-                df_apilado['Periodo'] = df_apilado['FECHA_DT'].dt.strftime('%b %y').str.lower()
-                df_apilado['Orden'] = df_apilado['FECHA_DT'].dt.to_period('M')
-
-                def clasificar(fila):
-                    if fila in ['Soporte Dcero', 'Soporte Secomp']: return 'Ejecución'
-                    elif fila == 'Soporte Circuito Cerrado de Televisin (CCTV)': return 'Pendiente'
-                    else: return 'Otros'
-
-                df_apilado['Categoria'] = df_apilado[col_u].apply(clasificar)
-                df_apilado = df_apilado[df_apilado['Categoria'] != 'Otros']
-
-                mensual_grp = df_apilado.groupby(['Orden', 'Periodo', 'Categoria']).size().reset_index(name='Cantidad')
-                mensual_grp = mensual_grp.sort_values('Orden')
-
-                fig_apilado = px.bar(
-                    mensual_grp, x='Periodo', y='Cantidad', color='Categoria',
-                    title="<b>Reportes en ejecución</b>",
-                    text_auto=True,
-                    color_discrete_map={'Pendiente': color_pendiente, 'Ejecución': color_ejecucion}
-                )
-                fig_apilado.update_layout(
-                    paper_bgcolor='white', plot_bgcolor='white', 
-                    height=400, margin=dict(l=10, r=10, t=50, b=10),
-                    legend=dict(orientation="h", title=None, yanchor="bottom", y=1.02, xanchor="right", x=1),
-                    xaxis_title=None, yaxis_title=None
-                )
-                fig_apilado.update_yaxes(showgrid=True, gridcolor='#F0F2F5')
-                fig_apilado.update_traces(marker_line_width=0)
-                st.plotly_chart(fig_apilado, use_container_width=True)
-
-    with tab2:
-        st.header("Análisis por Local")
-        if 'LOCAL' in df.columns:
-            lista_locales = sorted(df['LOCAL'].unique())
-            local_sel = st.selectbox("🏢 Selecciona un Local:", lista_locales)
-            res = df[df['LOCAL'] == local_sel]
-            st.dataframe(res[['REPORTE', 'ESTADO_SN', 'PROVEDDOR', 'COMENTARIO']], use_container_width=True, hide_index=True)
+    # Tabla de Detalle al final
+    st.markdown('<div class="css-card">', unsafe_allow_html=True)
+    st.markdown("### 📝 Detalle de Reportes Seleccionados")
+    st.dataframe(df[['REPORTE', 'LOCAL', 'ESTADO_SN', 'PROVEDDOR', 'COMENTARIO']], use_container_width=True, hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 except Exception as e:
-    st.error(f"Error en el procesamiento: {e}")
+    st.error(f"Error en el sistema: {e}")
