@@ -78,34 +78,35 @@ try:
         # ==========================================
         # LÓGICA DE KPIs (TARJETAS)
         # ==========================================
-        # Condición base: Casos en gestión activa
+        # 1. Filtro base de Casos en gestión (Columna N)
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
-            filtro_abiertos = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
-            t_total_abiertos = len(df_mostrar[filtro_abiertos])
+            filtro_gestion = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
+            t_total_abiertos = len(df_mostrar[filtro_gestion])
         else:
-            filtro_abiertos = pd.Series(False, index=df_mostrar.index)
+            filtro_gestion = pd.Series(False, index=df_mostrar.index)
             t_total_abiertos = 0
 
-        # Filtros por GRUPO_ASIGNADO (Columna U)
+        # 2. Filtros por GRUPO_ASIGNADO (Columna U)
         if 'GRUPO_ASIGNADO' in df_mostrar.columns:
             df_mostrar['GRUPO_ASIGNADO'] = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip()
             g_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
             g_dcero = 'Soporte Dcero'
             g_secomp = 'Soporte Secomp'
             
-            t_cctv = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'] == g_cctv)])
-            t_dcero = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'] == g_dcero)])
-            t_secomp = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'] == g_secomp)])
+            t_cctv = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_cctv)])
+            t_dcero = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_dcero)])
+            t_secomp = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_secomp)])
             
             t_en_ejecucion = t_dcero + t_secomp
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
 
-        # --- TARJETA SIN ESTADO: TODO LO QUE EN COLUMNA S (PROVEDDOR) ESTÁ VACÍO ---
+        # --- TARJETA SIN ESTADO: GESTIÓN ACTIVA (N) Y PROVEEDOR VACÍO (S) ---
         if 'PROVEDDOR' in df_mostrar.columns:
-            # Filtramos registros donde la columna S esté vacía, sea 'nan' o solo espacios
-            t_sin_estado = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])])
+            # Filtro: Columna N en gestión Y Columna S vacía
+            filtro_prov_vacio = df_mostrar['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])
+            t_sin_estado = len(df_mostrar[filtro_gestion & filtro_prov_vacio])
         else:
             t_sin_estado = 0
 
