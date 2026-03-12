@@ -33,19 +33,17 @@ def cargar_datos():
     # ==========================================
     # FILTRO MAESTRO DE DATOS ABIERTOS
     # ==========================================
-    # 1. Nombres de los encabezados (Fila 1 de tu Excel)
-    col_estado = 'ESTADO_SN' 
-    
-    # ¡OJO AQUÍ!: Reemplaza 'TITULO_COLUMNA_N' por el nombre real que tiene la columna N en tu hoja
-    col_n = 'TITULO_COLUMNA_N' 
+    col_estado = 'ESTADO_SN'          # Columna N
+    col_atencion = 'ESTADO_ATENCION'  # Columna O
 
-    # 2. Filtrar los estados cerrados
+    # 1. Filtrar los estados cerrados en la Columna N
     estados_excluidos = ['Cerrado', 'Cerrado completo', 'Resuelto', 'Cerrado Incompleto', 'REVISAR']
-    df = df[~df[col_estado].isin(estados_excluidos)]
+    if col_estado in df.columns:
+        df = df[~df[col_estado].isin(estados_excluidos)]
     
-    # 3. Filtrar "OTRO SERVICIO" de la columna N
-    if col_n in df.columns:
-        df = df[df[col_n] != 'OTRO SERVICIO']
+    # 2. Filtrar "OTRO SERVICIO" de la Columna O
+    if col_atencion in df.columns:
+        df = df[df[col_atencion] != 'OTRO SERVICIO']
 
     return df
 
@@ -68,10 +66,12 @@ try:
 
         t_abiertos = len(df_mostrar)
         t_cctv = len(df_mostrar) 
-        t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)])
-        t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)])
-        t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'] == 'En Proceso']) 
-        t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == ''])
+        
+        # Seguros por si alguna columna viene vacía o cambia de nombre
+        t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
+        t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
+        t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'] == 'En Proceso']) if 'ESTADO_SN' in df_mostrar.columns else 0
+        t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         
@@ -88,36 +88,41 @@ try:
         layout_transparente = dict(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#e0e0e0', height=280, margin=dict(l=10, r=10, t=30, b=10))
         
         with graf_sup1:
-            top_locales = df_mostrar['LOCAL'].value_counts().head(10).reset_index()
-            top_locales.columns = ['Local', 'Cantidad']
-            fig1 = px.bar(top_locales, x='Local', y='Cantidad', title="<b>TOP 10 LOCALES CRÍTICOS</b>", text_auto=True, color_discrete_sequence=['#008080'])
-            fig1.update_layout(**layout_transparente)
-            fig1.update_yaxes(showgrid=False, visible=False)
-            st.plotly_chart(fig1, use_container_width=True)
+            if 'LOCAL' in df_mostrar.columns:
+                top_locales = df_mostrar['LOCAL'].value_counts().head(10).reset_index()
+                top_locales.columns = ['Local', 'Cantidad']
+                fig1 = px.bar(top_locales, x='Local', y='Cantidad', title="<b>TOP 10 LOCALES CRÍTICOS</b>", text_auto=True, color_discrete_sequence=['#008080'])
+                fig1.update_layout(**layout_transparente)
+                fig1.update_yaxes(showgrid=False, visible=False)
+                st.plotly_chart(fig1, use_container_width=True)
 
         with graf_sup2:
-            conteo_estados = df_mostrar['ESTADO_SN'].value_counts().reset_index()
-            conteo_estados.columns = ['Estado', 'Cantidad']
-            fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', title="<b>ESTADO (SOLO ABIERTOS)</b>", hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
-            fig2.update_layout(**layout_transparente, showlegend=False)
-            fig2.update_traces(textposition='inside', textinfo='percent+label', textfont_size=12)
-            st.plotly_chart(fig2, use_container_width=True)
+            if 'ESTADO_SN' in df_mostrar.columns:
+                conteo_estados = df_mostrar['ESTADO_SN'].value_counts().reset_index()
+                conteo_estados.columns = ['Estado', 'Cantidad']
+                fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', title="<b>ESTADO (SOLO ABIERTOS)</b>", hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
+                fig2.update_layout(**layout_transparente, showlegend=False)
+                fig2.update_traces(textposition='inside', textinfo='percent+label', textfont_size=12)
+                st.plotly_chart(fig2, use_container_width=True)
 
         with graf_sup3:
-            conteo_prov = df_mostrar['PROVEDDOR'].value_counts().reset_index()
-            conteo_prov.columns = ['Proveedor', 'Cantidad']
-            fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor', title="<b>ASIGNACIÓN ACTUAL</b>", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig3.update_layout(**layout_transparente, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-            fig3.update_traces(textposition='inside', textinfo='percent')
-            st.plotly_chart(fig3, use_container_width=True)
+            if 'PROVEDDOR' in df_mostrar.columns:
+                conteo_prov = df_mostrar['PROVEDDOR'].value_counts().reset_index()
+                conteo_prov.columns = ['Proveedor', 'Cantidad']
+                fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor', title="<b>ASIGNACIÓN ACTUAL</b>", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig3.update_layout(**layout_transparente, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig3.update_traces(textposition='inside', textinfo='percent')
+                st.plotly_chart(fig3, use_container_width=True)
 
     with tab2:
         st.header("Análisis por Local")
-        lista_locales = df['LOCAL'].unique()
-        local_seleccionado = st.selectbox("🏢 Selecciona un Local:", lista_locales)
-        
-        datos_local = df[df['LOCAL'] == local_seleccionado]
-        st.dataframe(datos_local[['REPORTE', 'TIENDA', 'ESTADO_SN', 'PROVEDDOR', 'COMENTARIO']], use_container_width=True, hide_index=True)
+        if 'LOCAL' in df.columns:
+            lista_locales = df['LOCAL'].unique()
+            local_seleccionado = st.selectbox("🏢 Selecciona un Local:", lista_locales)
+            
+            datos_local = df[df['LOCAL'] == local_seleccionado]
+            columnas_mostrar = [c for c in ['REPORTE', 'TIENDA', 'ESTADO_SN', 'PROVEDDOR', 'COMENTARIO'] if c in df.columns]
+            st.dataframe(datos_local[columnas_mostrar], use_container_width=True, hide_index=True)
 
 except Exception as e:
     st.error(f"Error cargando la aplicación: {e}")
