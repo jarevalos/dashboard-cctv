@@ -46,7 +46,7 @@ def cargar_datos():
     data = worksheet.get_all_records()
     df = pd.DataFrame(data)
 
-    # --- FILTRO MAESTRO ---
+    # --- FILTRO MAESTRO (REGLAS KOKE) ---
     col_n = 'ESTADO_SN'
     col_o = 'ESTADO_ATENCION'
 
@@ -80,8 +80,6 @@ try:
         t_total_abiertos = len(df)
         
         col_u = 'GRUPO_ASIGNADO'
-        col_s = 'PROVEDDOR'
-        
         if col_u in df.columns:
             df[col_u] = df[col_u].astype(str).str.strip()
             g_cctv_txt = 'Soporte Circuito Cerrado de Televisin (CCTV)'
@@ -95,76 +93,66 @@ try:
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
         
+        col_s = 'PROVEDDOR'
         if col_s in df.columns:
             t_pendientes = len(df[df[col_s].astype(str).str.strip().isin(['', 'nan', 'None'])])
         else:
             t_pendientes = 0
 
         # --- FILA DE TARJETAS ---
-        kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
-        with kpi1: st.markdown(crear_tarjeta_pro("Casos Abiertos", t_total_abiertos, "#E74C3C"), unsafe_allow_html=True) 
-        with kpi2: st.markdown(crear_tarjeta_pro("Soporte CCTV", t_cctv, "#2980B9"), unsafe_allow_html=True) 
-        with kpi3: st.markdown(crear_tarjeta_pro("Soporte Dcero", t_dcero, "#3498DB"), unsafe_allow_html=True) 
-        with kpi4: st.markdown(crear_tarjeta_pro("Soporte Secomp", t_secomp, "#5DADE2"), unsafe_allow_html=True) 
-        with kpi5: st.markdown(crear_tarjeta_pro("En Ejecución", t_en_ejecucion, "#F39C12"), unsafe_allow_html=True)
-        with kpi6: st.markdown(crear_tarjeta_pro("PENDIENTES", t_pendientes, "#34495E"), unsafe_allow_html=True)
+        kpis = st.columns(6)
+        with kpis[0]: st.markdown(crear_tarjeta_pro("Casos Abiertos", t_total_abiertos, "#E74C3C"), unsafe_allow_html=True) 
+        with kpis[1]: st.markdown(crear_tarjeta_pro("Soporte CCTV", t_cctv, "#2980B9"), unsafe_allow_html=True) 
+        with kpis[2]: st.markdown(crear_tarjeta_pro("Soporte Dcero", t_dcero, "#3498DB"), unsafe_allow_html=True) 
+        with kpis[3]: st.markdown(crear_tarjeta_pro("Soporte Secomp", t_secomp, "#5DADE2"), unsafe_allow_html=True) 
+        with kpis[4]: st.markdown(crear_tarjeta_pro("En Ejecución", t_en_ejecucion, "#F39C12"), unsafe_allow_html=True)
+        with kpis[5]: st.markdown(crear_tarjeta_pro("PENDIENTES", t_pendientes, "#34495E"), unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ========================================================
-        # FILA DE GRÁFICOS APILADOS
+        # DOS GRÁFICOS DISTINTOS LADO A LADO
         # ========================================================
-        col_j = 'FECHA_REPORTE'
-        
-        if col_j in df.columns and col_u in df.columns:
-            # 1. Preparar datos de tiempo
-            df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
-            df_plot = df.dropna(subset=['FECHA_DT']).copy()
-            df_plot['Periodo'] = df_plot['FECHA_DT'].dt.strftime('%b %y').str.lower()
-            df_plot['Orden'] = df_plot['FECHA_DT'].dt.to_period('M')
+        graf_col1, graf_col2 = st.columns(2)
 
-            # 2. Clasificar para el apilado
-            def clasificar_para_grafico(fila):
-                if fila in ['Soporte Dcero', 'Soporte Secomp']:
-                    return 'En ejecución (Externos)'
-                elif fila == 'Soporte Circuito Cerrado de Televisin (CCTV)':
-                    return 'Pendiente (Interno CCTV)'
-                else:
-                    return 'Otros'
+        # --- GRÁFICO 1: ANTIGÜEDAD POR MES (Izquierda) ---
+        col_j = 'FECHA_REPORTE' 
+        with graf_col1:
+            if col_j in df.columns:
+                df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
+                df_fechas = df.dropna(subset=['FECHA_DT']).copy()
+                df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
+                df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
+                mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad')
+                mensual_df = mensual_df.sort_values('Orden')
 
-            df_plot['Categoria'] = df_plot[col_u].apply(clasificar_para_grafico)
-            
-            # 3. Agrupar
-            mensual_grp = df_plot.groupby(['Orden', 'Periodo', 'Categoria']).size().reset_index(name='Cantidad')
-            mensual_grp = mensual_grp.sort_values('Orden')
+                fig_mes = px.bar(mensual_df, x='Periodo', y='Cantidad', title="<b>Pendientes por Mes de Apertura</b>", text_auto=True, color_discrete_sequence=['#008080'])
+                fig_mes.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=10, r=10, t=50, b=10))
+                fig_mes.update_traces(textposition='outside')
+                st.plotly_chart(fig_mes, use_container_width=True)
 
-            # 4. Crear Gráfico Apilado
-            fig_apilado = px.bar(
-                mensual_grp, 
-                x='Periodo', 
-                y='Cantidad', 
-                color='Categoria',
-                title="<b>Distribución Mensual: Interno vs Externos</b>",
-                text_auto=True,
-                color_discrete_map={
-                    'Pendiente (Interno CCTV)': '#008080',  # Turquesa
-                    'En ejecución (Externos)': '#F39C12'    # Naranja
-                }
-            )
+        # --- GRÁFICO 2: CARGA POR GRUPO (Derecha) ---
+        with graf_col2:
+            if col_u in df.columns:
+                def agrupar_grupos(fila):
+                    if fila in [g_dcero_txt, g_secomp_txt]: return 'Externos (Dcero + Secomp)'
+                    elif fila == g_cctv_txt: return 'Interno (CCTV)'
+                    else: return 'Otros'
 
-            fig_apilado.update_layout(
-                paper_bgcolor='white', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                height=400, 
-                margin=dict(l=10, r=10, t=50, b=10),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                xaxis_title=None,
-                yaxis_title="Cantidad de Reportes"
-            )
-            
-            st.plotly_chart(fig_apilado, use_container_width=True)
-        else:
-            st.info("Faltan columnas críticas (J o U) para generar el gráfico.")
+                df['Categoria_Grupo'] = df[col_u].apply(agrupar_grupos)
+                resumen_grupo = df[df['Categoria_Grupo'] != 'Otros']['Categoria_Grupo'].value_counts().reset_index()
+                resumen_grupo.columns = ['Grupo', 'Cantidad']
+
+                fig_grp = px.bar(
+                    resumen_grupo, x='Grupo', y='Cantidad', 
+                    title="<b>Distribución: Externos vs CCTV</b>", 
+                    text_auto=True, 
+                    color='Grupo',
+                    color_discrete_map={'Externos (Dcero + Secomp)': '#F39C12', 'Interno (CCTV)': '#2980B9'}
+                )
+                fig_grp.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
+                fig_grp.update_traces(textposition='outside')
+                st.plotly_chart(fig_grp, use_container_width=True)
 
     with tab2:
         st.header("Análisis por Local")
