@@ -80,6 +80,8 @@ try:
         t_total_abiertos = len(df)
         
         col_u = 'GRUPO_ASIGNADO'
+        col_s = 'PROVEDDOR'
+        
         if col_u in df.columns:
             df[col_u] = df[col_u].astype(str).str.strip()
             g_cctv_txt = 'Soporte Circuito Cerrado de Televisin (CCTV)'
@@ -93,7 +95,6 @@ try:
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
         
-        col_s = 'PROVEDDOR'
         if col_s in df.columns:
             t_pendientes = len(df[df[col_s].astype(str).str.strip().isin(['', 'nan', 'None'])])
         else:
@@ -115,44 +116,68 @@ try:
         # ========================================================
         graf_col1, graf_col2 = st.columns(2)
 
+        col_j = 'FECHA_REPORTE'
+
         # --- GRÁFICO 1: ANTIGÜEDAD POR MES (Izquierda) ---
-        col_j = 'FECHA_REPORTE' 
         with graf_col1:
             if col_j in df.columns:
                 df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
                 df_fechas = df.dropna(subset=['FECHA_DT']).copy()
                 df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
                 df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
+                
                 mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad')
                 mensual_df = mensual_df.sort_values('Orden')
 
-                fig_mes = px.bar(mensual_df, x='Periodo', y='Cantidad', title="<b>Pendientes por Mes de Apertura</b>", text_auto=True, color_discrete_sequence=['#008080'])
-                fig_mes.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=10, r=10, t=50, b=10))
+                fig_mes = px.bar(
+                    mensual_df, x='Periodo', y='Cantidad', 
+                    title="<b>Pendientes por Mes de Apertura</b>", 
+                    text_auto=True, 
+                    color_discrete_sequence=['#008080']
+                )
+                fig_mes.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
                 fig_mes.update_traces(textposition='outside')
                 st.plotly_chart(fig_mes, use_container_width=True)
 
-        # --- GRÁFICO 2: CARGA POR GRUPO (Derecha) ---
+        # --- GRÁFICO 2: APILADO POR GRUPO (Derecha) ---
         with graf_col2:
-            if col_u in df.columns:
-                def agrupar_grupos(fila):
-                    if fila in [g_dcero_txt, g_secomp_txt]: return 'Externos (Dcero + Secomp)'
-                    elif fila == g_cctv_txt: return 'Interno (CCTV)'
-                    else: return 'Otros'
+            if col_j in df.columns and col_u in df.columns:
+                df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
+                df_apilado = df.dropna(subset=['FECHA_DT']).copy()
+                df_apilado['Periodo'] = df_apilado['FECHA_DT'].dt.strftime('%b %y').str.lower()
+                df_apilado['Orden'] = df_apilado['FECHA_DT'].dt.to_period('M')
 
-                df['Categoria_Grupo'] = df[col_u].apply(agrupar_grupos)
-                resumen_grupo = df[df['Categoria_Grupo'] != 'Otros']['Categoria_Grupo'].value_counts().reset_index()
-                resumen_grupo.columns = ['Grupo', 'Cantidad']
+                # Clasificación interna
+                def clasificar(fila):
+                    if fila in ['Soporte Dcero', 'Soporte Secomp']:
+                        return 'En ejecución (Dcero + Secomp)'
+                    elif fila == 'Soporte Circuito Cerrado de Televisin (CCTV)':
+                        return 'Pendiente (Interno CCTV)'
+                    else:
+                        return 'Otros'
 
-                fig_grp = px.bar(
-                    resumen_grupo, x='Grupo', y='Cantidad', 
-                    title="<b>Distribución: Externos vs CCTV</b>", 
-                    text_auto=True, 
-                    color='Grupo',
-                    color_discrete_map={'Externos (Dcero + Secomp)': '#F39C12', 'Interno (CCTV)': '#2980B9'}
+                df_apilado['Categoria'] = df_apilado[col_u].apply(clasificar)
+                df_apilado = df_apilado[df_apilado['Categoria'] != 'Otros']
+
+                mensual_grp = df_apilado.groupby(['Orden', 'Periodo', 'Categoria']).size().reset_index(name='Cantidad')
+                mensual_grp = mensual_grp.sort_values('Orden')
+
+                fig_apilado = px.bar(
+                    mensual_grp, x='Periodo', y='Cantidad', color='Categoria',
+                    title="<b>Distribución Apilada por Mes</b>",
+                    text_auto=True,
+                    color_discrete_map={
+                        'Pendiente (Interno CCTV)': '#008080',  # Turquesa
+                        'En ejecución (Dcero + Secomp)': '#F39C12' # Naranja
+                    }
                 )
-                fig_grp.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
-                fig_grp.update_traces(textposition='outside')
-                st.plotly_chart(fig_grp, use_container_width=True)
+                fig_apilado.update_layout(
+                    paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', 
+                    height=380, margin=dict(l=10, r=10, t=50, b=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                    xaxis_title=None
+                )
+                st.plotly_chart(fig_apilado, use_container_width=True)
 
     with tab2:
         st.header("Análisis por Local")
