@@ -4,17 +4,39 @@ import gspread
 from google.oauth2.service_account import Credentials
 import plotly.express as px
 
-st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
+# 1. Configuración de la página
+st.set_page_config(page_title="Dashboard CCTV", page_icon="🍕", layout="wide")
 
+# ==========================================
+# CSS ESTILO POWER BI / EXCEL CORPORATIVO
+# ==========================================
 st.markdown("""
     <style>
-    .block-container { padding-top: 1rem !important; padding-bottom: 1rem !important; max-width: 95% !important; }
-    h1 { font-size: 1.8rem !important; font-weight: 600 !important; color: #e0e0e0; margin-bottom: 1rem !important; }
+    /* Fondo de toda la aplicación gris claro */
+    .stApp {
+        background-color: #F0F2F6 !important;
+    }
+    /* Reducir márgenes de la pantalla */
+    .block-container { 
+        padding-top: 1rem !important; 
+        padding-bottom: 1rem !important; 
+        max-width: 98% !important; 
+    }
+    /* Ocultar elementos nativos de Streamlit */
     header {visibility: hidden;} footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📊 Panel de Control CCTV")
+# --- BANNER SUPERIOR OSCURO ---
+st.markdown("""
+    <div style="background-color: #1E2433; padding: 20px 30px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div style="font-size: 40px; margin-right: 20px;">📹</div>
+        <div>
+            <h1 style="color: white; margin: 0; padding: 0; font-size: 26px; font-weight: 700;">Dashboard - Panel de Control CCTV</h1>
+            <p style="color: #A0AAB5; margin: 0; font-size: 14px;">Características que describen el estado de atenciones a nivel nacional</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 @st.cache_data(ttl=60)
 def cargar_datos():
@@ -30,30 +52,27 @@ def cargar_datos():
     data = worksheet.get_all_records()
     df = pd.DataFrame(data)
 
-    # ==========================================
-    # FILTRO MAESTRO DE DATOS (LIMPIEZA INICIAL)
-    # ==========================================
+    # --- FILTRO MAESTRO DE DATOS ABIERTOS ---
     col_estado = 'ESTADO_SN'          
     col_atencion = 'ESTADO_ATENCION'  
 
-    # 1. Limpiar y filtrar la columna N (ESTADO_SN)
     if col_estado in df.columns:
         df[col_estado] = df[col_estado].astype(str).str.strip() 
         estados_excluidos = ['CERRADO', 'CERRADO COMPLETO', 'RESUELTO', 'CERRADO INCOMPLETO', 'REVISAR']
         df = df[~df[col_estado].str.upper().isin(estados_excluidos)]
     
-    # 2. Limpiar y filtrar la columna O (ESTADO_ATENCION)
     if col_atencion in df.columns:
         df[col_atencion] = df[col_atencion].astype(str).str.strip()
         df = df[df[col_atencion].str.upper() != 'OTRO SERVICIO']
 
     return df
 
-def crear_tarjeta(titulo, valor, color_borde):
+# --- FUNCIÓN DE TARJETAS BLANCAS CON ACENTO DE COLOR ---
+def crear_tarjeta(titulo, valor, color_acento):
     html = f"""
-    <div style="background-color: #262730; padding: 15px 20px; border-radius: 8px; border-left: 5px solid {color_borde}; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); margin-bottom: 10px;">
-        <p style="margin: 0; font-size: 0.85rem; color: #a5a5a5; font-weight: 600; text-transform: uppercase;">{titulo}</p>
-        <h2 style="margin: 0; font-size: 2rem; color: #ffffff; font-weight: 700;">{valor}</h2>
+    <div style="background-color: white; padding: 15px 10px; border-radius: 8px; border-top: 4px solid {color_acento}; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; margin-bottom: 15px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+        <p style="margin: 0; font-size: 0.85rem; color: #555555; font-weight: 600; text-transform: uppercase;">{titulo}</p>
+        <h2 style="margin: 0; font-size: 2.2rem; color: #1E2433; font-weight: 800;">{valor}</h2>
     </div>
     """
     return html
@@ -66,65 +85,70 @@ try:
     with tab1:
         df_mostrar = df.copy()
 
-        # ==========================================
-        # CÁLCULO DE KPIs EXACTOS
-        # ==========================================
-        # 1. Casos Abiertos: "Asignado", "En espera" y "En Progreso"
+        # KPIs
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
             t_abiertos = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)])
-        else:
-            t_abiertos = 0
+        else: t_abiertos = 0
 
         t_cctv = len(df_mostrar) 
         t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
         t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
-        
         t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
-        
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
-        # --- DIBUJAR LAS TARJETAS ---
+        # --- FILA DE TARJETAS ---
+        # Usamos colores como los de la imagen: Rojos, Azules, Negros
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
-        
-        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#008080"), unsafe_allow_html=True)
-        with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#4682B4"), unsafe_allow_html=True)
-        with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#FF8C00"), unsafe_allow_html=True)
-        with kpi4: st.markdown(crear_tarjeta("SECOMP", t_secomp, "#9370DB"), unsafe_allow_html=True)
-        with kpi5: st.markdown(crear_tarjeta("En ejecución", t_ejecucion, "#32CD32"), unsafe_allow_html=True)
-        with kpi6: st.markdown(crear_tarjeta("Sin Estado", t_sin_estado, "#DC143C"), unsafe_allow_html=True)
+        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#D92B38"), unsafe_allow_html=True) # Rojo
+        with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) # Azul oscuro
+        with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#4DA6FF"), unsafe_allow_html=True) # Celeste
+        with kpi4: st.markdown(crear_tarjeta("SECOMP", t_secomp, "#4DA6FF"), unsafe_allow_html=True) 
+        with kpi5: st.markdown(crear_tarjeta("En ejecución", t_ejecucion, "#D92B38"), unsafe_allow_html=True)
+        with kpi6: st.markdown(crear_tarjeta("Sin Estado", t_sin_estado, "#1E2433"), unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # --- GRÁFICOS ---
+        # --- GRÁFICOS ESTILO TARJETA BLANCA ---
         graf_sup1, graf_sup2, graf_sup3 = st.columns(3)
-        layout_transparente = dict(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='#e0e0e0', height=280, margin=dict(l=10, r=10, t=30, b=10))
+        
+        # Configuración para que el gráfico parezca una tarjeta blanca
+        layout_blanco = dict(
+            paper_bgcolor='white', 
+            plot_bgcolor='white', 
+            font_color='#333333', 
+            height=320, 
+            margin=dict(l=20, r=20, t=50, b=20),
+            title_font=dict(size=14, color='#1E2433')
+        )
+        # Paleta de colores inspirada en tu imagen (Rojos y Azules)
+        paleta_colores = ['#1F4E79', '#D92B38', '#4DA6FF', '#8CA3B5', '#1E2433']
         
         with graf_sup1:
             if 'LOCAL' in df_mostrar.columns:
                 top_locales = df_mostrar['LOCAL'].value_counts().head(10).reset_index()
                 top_locales.columns = ['Local', 'Cantidad']
-                fig1 = px.bar(top_locales, x='Local', y='Cantidad', title="<b>TOP 10 LOCALES CRÍTICOS</b>", text_auto=True, color_discrete_sequence=['#008080'])
-                fig1.update_layout(**layout_transparente)
-                fig1.update_yaxes(showgrid=False, visible=False)
+                fig1 = px.bar(top_locales, x='Local', y='Cantidad', title="<b>TOP 10 LOCALES CRÍTICOS</b>", text_auto=True, color_discrete_sequence=['#1F4E79'])
+                fig1.update_layout(**layout_blanco)
+                fig1.update_yaxes(showgrid=True, gridcolor='#f0f0f0') # Líneas de fondo muy sutiles
                 st.plotly_chart(fig1, use_container_width=True)
 
         with graf_sup2:
             if 'ESTADO_SN' in df_mostrar.columns:
                 conteo_estados = df_mostrar['ESTADO_SN'].value_counts().reset_index()
                 conteo_estados.columns = ['Estado', 'Cantidad']
-                fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', title="<b>ESTADO (SOLO ABIERTOS)</b>", hole=0.6, color_discrete_sequence=px.colors.sequential.Teal)
-                fig2.update_layout(**layout_transparente, showlegend=False)
-                fig2.update_traces(textposition='inside', textinfo='percent+label', textfont_size=12)
+                fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', title="<b>ESTADO (SOLO ABIERTOS)</b>", hole=0.6, color_discrete_sequence=paleta_colores)
+                fig2.update_layout(**layout_blanco, showlegend=False)
+                fig2.update_traces(textposition='inside', textinfo='percent+label', textfont_size=12, marker=dict(line=dict(color='white', width=2)))
                 st.plotly_chart(fig2, use_container_width=True)
 
         with graf_sup3:
             if 'PROVEDDOR' in df_mostrar.columns:
                 conteo_prov = df_mostrar['PROVEDDOR'].value_counts().reset_index()
                 conteo_prov.columns = ['Proveedor', 'Cantidad']
-                fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor', title="<b>ASIGNACIÓN ACTUAL</b>", hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig3.update_layout(**layout_transparente, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
-                fig3.update_traces(textposition='inside', textinfo='percent')
+                fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor', title="<b>ASIGNACIÓN ACTUAL</b>", hole=0.4, color_discrete_sequence=paleta_colores)
+                fig3.update_layout(**layout_blanco, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5))
+                fig3.update_traces(textposition='inside', textinfo='percent', marker=dict(line=dict(color='white', width=2)))
                 st.plotly_chart(fig3, use_container_width=True)
 
     with tab2:
