@@ -7,27 +7,36 @@ import plotly.express as px
 # 1. Configuración de la página
 st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
 
-# --- MAGIA CSS PARA HACER TODO MÁS COMPACTO ---
+# --- CSS SÚPER COMPACTO ---
 st.markdown("""
     <style>
-    /* Reducir el espacio en blanco superior de la página */
+    /* Reducir al máximo los márgenes de la página */
     .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
     }
-    /* Achicar el título principal */
+    /* Achicar título principal */
     h1 {
-        font-size: 1.8rem !important;
-        padding-bottom: 0px !important;
+        font-size: 1.5rem !important;
+        padding-top: 0rem !important;
+        padding-bottom: 0rem !important;
+        margin-bottom: 0rem !important;
     }
-    /* Achicar los números de las tarjetas (KPIs) */
+    /* Achicar números de KPIs (Tarjetas) */
     [data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
+        font-size: 1.4rem !important;
     }
+    /* Achicar los textos encima de los números */
     [data-testid="stMetricLabel"] {
-        font-size: 0.9rem !important;
+        font-size: 0.8rem !important;
         color: #555555;
     }
+    /* Juntar más las filas y columnas */
+    div[data-testid="stVerticalBlock"] {
+        gap: 0.2rem !important;
+    }
+    /* Ocultar el encabezado por defecto de Streamlit para ganar espacio */
+    header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -51,25 +60,15 @@ def cargar_datos():
 try:
     df = cargar_datos()
     
-    tab1, tab2 = st.tabs(["📊 Dashboard General", "🏢 Análisis por Local"])
+    tab1, tab2 = st.tabs(["📊 Panel General", "🏢 Análisis por Local"])
     
     # ==========================================
-    # PESTAÑA 1: DASHBOARD COMPACTO
+    # PESTAÑA 1: DASHBOARD (SIN FILTROS Y PEQUEÑO)
     # ==========================================
     with tab1:
-        # --- FILA 1: FILTROS SUPERIORES ---
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1:
-            filtro_estado = st.selectbox("ESTADO GESTIÓN", ["Todos"] + list(df['ESTADO_SN'].unique()))
-        with col_f2:
-            filtro_mes = st.selectbox("MES PRESUPUESTO", ["Todos"]) 
-        with col_f3:
-            filtro_prov = st.selectbox("PROVEEDOR", ["Todos"] + list(df['PROVEDDOR'].unique()))
-
         df_mostrar = df.copy()
 
-        # --- FILA 2: TARJETAS DE MÉTRICAS (KPIs) ---
-        st.markdown("---")
+        # --- TARJETAS DE MÉTRICAS (KPIs) pegadas arriba ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         
         kpi1.metric("Backlog Total", len(df_mostrar))
@@ -81,7 +80,6 @@ try:
         total_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)])
         kpi4.metric("SECOMP", total_secomp)
         
-        # Ajusta el texto 'En Proceso' según lo que diga exactamente en tu hoja
         total_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'] == 'En Proceso']) 
         kpi5.metric("En ejecución", total_ejecucion)
         
@@ -90,18 +88,19 @@ try:
 
         st.markdown("---")
 
-        # --- FILA 3: GRÁFICOS COMPACTOS ---
+        # --- GRÁFICOS COMPACTOS ---
         graf_sup1, graf_sup2, graf_sup3 = st.columns(3)
         
-        # Altura fija para que los gráficos no se alarguen
-        altura_grafico = 280 
+        # Redujimos la altura a 220px para que quede todo en un solo pantallazo
+        altura_grafico = 220 
         
         with graf_sup1:
             st.markdown("**TOP 10 LOCALES**")
             top_locales = df_mostrar['LOCAL'].value_counts().head(10).reset_index()
             top_locales.columns = ['Local', 'Cantidad']
             fig1 = px.bar(top_locales, x='Local', y='Cantidad', text_auto=True, color_discrete_sequence=['#008080'])
-            fig1.update_layout(height=altura_grafico, margin=dict(l=10, r=10, t=10, b=10))
+            # Eliminamos los márgenes (l=0, r=0...) para aprovechar el 100% del cuadro
+            fig1.update_layout(height=altura_grafico, margin=dict(l=0, r=0, t=0, b=0), xaxis_title=None, yaxis_title=None)
             st.plotly_chart(fig1, use_container_width=True)
 
         with graf_sup2:
@@ -109,7 +108,7 @@ try:
             conteo_estados = df_mostrar['ESTADO_SN'].value_counts().reset_index()
             conteo_estados.columns = ['Estado', 'Cantidad']
             fig2 = px.pie(conteo_estados, values='Cantidad', names='Estado', hole=0.5)
-            fig2.update_layout(height=altura_grafico, margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+            fig2.update_layout(height=altura_grafico, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
             fig2.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig2, use_container_width=True)
 
@@ -118,7 +117,7 @@ try:
             conteo_prov = df_mostrar['PROVEDDOR'].value_counts().reset_index()
             conteo_prov.columns = ['Proveedor', 'Cantidad']
             fig3 = px.pie(conteo_prov, values='Cantidad', names='Proveedor')
-            fig3.update_layout(height=altura_grafico, margin=dict(l=10, r=10, t=10, b=10), showlegend=False)
+            fig3.update_layout(height=altura_grafico, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
             fig3.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig3, use_container_width=True)
 
