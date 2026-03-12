@@ -89,24 +89,27 @@ try:
 
         # Filtros por GRUPO_ASIGNADO (Columna U)
         if 'GRUPO_ASIGNADO' in df_mostrar.columns:
+            df_mostrar['GRUPO_ASIGNADO'] = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip()
             g_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
             g_dcero = 'Soporte Dcero'
             g_secomp = 'Soporte Secomp'
             
-            # Cálculo individual
-            t_cctv = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_cctv)])
-            t_dcero = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_dcero)])
-            t_secomp = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_secomp)])
+            t_cctv = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'] == g_cctv)])
+            t_dcero = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'] == g_dcero)])
+            t_secomp = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'] == g_secomp)])
             
-            # --- TARJETA EN EJECUCIÓN: SUMA DCERO + SECOMP ---
             t_en_ejecucion = t_dcero + t_secomp
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
 
-        # Otros
-        t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
+        # --- TARJETA SIN ESTADO: TODO LO QUE EN COLUMNA S (PROVEDDOR) ESTÁ VACÍO ---
+        if 'PROVEDDOR' in df_mostrar.columns:
+            # Filtramos registros donde la columna S esté vacía, sea 'nan' o solo espacios
+            t_sin_estado = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])])
+        else:
+            t_sin_estado = 0
 
-        # --- FILA DE TARJETAS ---
+        # --- DIBUJAR LAS TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_total_abiertos, "#D92B38"), unsafe_allow_html=True) 
         with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) 
