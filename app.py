@@ -69,9 +69,9 @@ try:
         # ==========================================
         # CÁLCULO DE KPIs EXACTOS
         # ==========================================
-        # 1. Casos Abiertos: SOLO "Asignado" y "En espera"
+        # 1. Casos Abiertos: "Asignado", "En espera" y "En Progreso"
         if 'ESTADO_SN' in df_mostrar.columns:
-            estados_backlog = ['ASIGNADO', 'EN ESPERA']
+            estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
             t_abiertos = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)])
         else:
             t_abiertos = 0
@@ -80,7 +80,6 @@ try:
         t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
         t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
         
-        # Asumiendo que "En ejecución" es igual a "En Proceso"
         t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
         
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
