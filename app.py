@@ -8,7 +8,7 @@ import plotly.express as px
 st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
 
 # ==========================================
-# CSS ESTILO POWER BI / EXCEL CORPORATIVO
+# CSS ESTILO CORPORATIVO
 # ==========================================
 st.markdown("""
     <style>
@@ -18,13 +18,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- BANNER SUPERIOR OSCURO ---
+# --- BANNER SUPERIOR ---
 st.markdown("""
     <div style="background-color: #1E2433; padding: 20px 30px; border-radius: 10px; margin-bottom: 20px; display: flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         <div style="font-size: 40px; margin-right: 20px;">📹</div>
         <div>
             <h1 style="color: white; margin: 0; padding: 0; font-size: 26px; font-weight: 700;">Dashboard - Panel de Control CCTV</h1>
-            <p style="color: #A0AAB5; margin: 0; font-size: 14px;">Características que describen el estado de atenciones a nivel nacional</p>
+            <p style="color: #A0AAB5; margin: 0; font-size: 14px;">Seguimiento de atenciones y gestión de proveedores</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -78,39 +78,41 @@ try:
         # ==========================================
         # LÓGICA DE KPIs (TARJETAS)
         # ==========================================
-        # 1. Filtro base de Casos Abiertos (Backlog)
+        # Condición base: Casos en gestión activa
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
             filtro_abiertos = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
-            t_abiertos = len(df_mostrar[filtro_abiertos])
-        else: 
+            t_total_abiertos = len(df_mostrar[filtro_abiertos])
+        else:
             filtro_abiertos = pd.Series(False, index=df_mostrar.index)
-            t_abiertos = 0
+            t_total_abiertos = 0
 
-        # 2. Filtros por GRUPO_ASIGNADO (Columna U)
+        # Filtros por GRUPO_ASIGNADO (Columna U)
         if 'GRUPO_ASIGNADO' in df_mostrar.columns:
             g_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
             g_dcero = 'Soporte Dcero'
             g_secomp = 'Soporte Secomp'
             
-            # Contamos cruzando: Abierto Y Grupo específico en Columna U
+            # Cálculo individual
             t_cctv = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_cctv)])
             t_dcero = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_dcero)])
             t_secomp = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_secomp)])
+            
+            # --- TARJETA EN EJECUCIÓN: SUMA DCERO + SECOMP ---
+            t_en_ejecucion = t_dcero + t_secomp
         else:
-            t_cctv = t_dcero = t_secomp = 0
+            t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
 
-        # 3. Otros KPIs
-        t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
+        # Otros
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
-        # --- DIBUJAR LAS TARJETAS ---
+        # --- FILA DE TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
-        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#D92B38"), unsafe_allow_html=True) 
+        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_total_abiertos, "#D92B38"), unsafe_allow_html=True) 
         with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) 
         with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#4DA6FF"), unsafe_allow_html=True) 
         with kpi4: st.markdown(crear_tarjeta("SECOMP", t_secomp, "#4DA6FF"), unsafe_allow_html=True) 
-        with kpi5: st.markdown(crear_tarjeta("En ejecución", t_ejecucion, "#D92B38"), unsafe_allow_html=True)
+        with kpi5: st.markdown(crear_tarjeta("En ejecución", t_en_ejecucion, "#D92B38"), unsafe_allow_html=True)
         with kpi6: st.markdown(crear_tarjeta("Sin Estado", t_sin_estado, "#1E2433"), unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
