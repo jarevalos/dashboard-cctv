@@ -3,50 +3,69 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
-# 1. Configuración de la página (Layout wide para aprovechar todo el ancho)
+# 1. Configuración de la página
 st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
 
 # ==========================================
-# CSS ULTRA COMPACTO: MÁXIMO APROVECHAMIENTO
+# CSS DISEÑO DE ALTO NIVEL (COMPACTO)
 # ==========================================
 st.markdown("""
     <style>
-    /* Fondo gris claro corporativo */
-    .stApp { background-color: #F0F2F6 !important; }
+    /* Fondo gris suave profesional */
+    .stApp { background-color: #F8F9FB !important; }
     
-    /* Subir todo el contenido al tope eliminando paddings */
+    /* Eliminar espacios superiores al máximo */
     .block-container { 
         padding-top: 0rem !important; 
         padding-bottom: 0rem !important; 
-        max-width: 98% !important; 
+        max-width: 95% !important; 
     }
     
-    /* Estilo para etiquetas de tarjetas (Pequeñas y discretas) */
-    .card-label {
-        margin: 0; 
-        font-size: 0.65rem !important; 
-        color: #666666; 
-        font-weight: 700; 
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
+    /* Contenedor de Tarjeta Mejorada */
+    .card-container {
+        background-color: white;
+        padding: 12px 10px;
+        border-radius: 10px;
+        border-bottom: 4px solid #E0E4E8;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        transition: transform 0.2s;
+        text-align: center;
+        margin-bottom: 10px;
     }
     
-    /* Estilo para los números grandes */
-    .card-value {
-        margin: 0; 
-        font-size: 1.7rem !important; 
-        color: #1E2433; 
-        font-weight: 800;
-        line-height: 1;
-        padding-top: 2px;
+    .card-container:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.05);
     }
 
-    /* Ocultar elementos nativos de Streamlit */
+    /* Títulos de tarjetas (Mini y elegantes) */
+    .card-label {
+        margin: 0;
+        font-size: 0.65rem !important;
+        color: #7F8C8D;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+    }
+    
+    /* Valores numéricos (Claridad absoluta) */
+    .card-value {
+        margin: 0;
+        font-size: 1.6rem !important;
+        color: #2C3E50;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    /* Ocultar elementos de Streamlit */
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Pegar las pestañas arriba */
-    .stTabs { margin-top: 0px !important; }
+    /* Ajuste de pestañas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        margin-bottom: 15px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -79,9 +98,9 @@ def cargar_datos():
 
     return df
 
-def crear_tarjeta(titulo, valor, color_acento):
+def crear_tarjeta_pro(titulo, valor, color_top):
     html = f"""
-    <div style="background-color: white; padding: 8px 5px; border-radius: 6px; border-top: 3px solid {color_acento}; box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-align: center; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+    <div class="card-container" style="border-top: 4px solid {color_top};">
         <p class="card-label">{titulo}</p>
         <h2 class="card-value">{valor}</h2>
     </div>
@@ -91,13 +110,12 @@ def crear_tarjeta(titulo, valor, color_acento):
 try:
     df = cargar_datos()
     
-    # Pestañas directo al inicio
-    tab1, tab2 = st.tabs(["📊 Panel General", "🏢 Análisis por Local"])
+    tab1, tab2 = st.tabs(["📊 Vista Ejecutiva", "🏢 Detalle por Local"])
     
     with tab1:
         df_mostrar = df.copy()
 
-        # --- LÓGICA DE DATOS ---
+        # Lógica de estados y grupos
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
             filtro_gestion = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
@@ -125,14 +143,14 @@ try:
         else:
             t_pendientes = 0
 
-        # --- FILA DE TARJETAS (Ahora más pegadas al borde superior) ---
+        # --- FILA DE TARJETAS REDISEÑADAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
-        with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_total_abiertos, "#D92B38"), unsafe_allow_html=True) 
-        with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) 
-        with kpi3: st.markdown(crear_tarjeta("DCERO", t_dcero, "#4DA6FF"), unsafe_allow_html=True) 
-        with kpi4: st.markdown(crear_tarjeta("SECOMP", t_secomp, "#4DA6FF"), unsafe_allow_html=True) 
-        with kpi5: st.markdown(crear_tarjeta("En ejecución", t_en_ejecucion, "#D92B38"), unsafe_allow_html=True)
-        with kpi6: st.markdown(crear_tarjeta("PENDIENTES", t_pendientes, "#1E2433"), unsafe_allow_html=True)
+        with kpi1: st.markdown(crear_tarjeta_pro("Casos Abiertos", t_total_abiertos, "#E74C3C"), unsafe_allow_html=True) 
+        with kpi2: st.markdown(crear_tarjeta_pro("Soporte CCTV", t_cctv, "#2980B9"), unsafe_allow_html=True) 
+        with kpi3: st.markdown(crear_tarjeta_pro("Soporte Dcero", t_dcero, "#3498DB"), unsafe_allow_html=True) 
+        with kpi4: st.markdown(crear_tarjeta_pro("Soporte Secomp", t_secomp, "#5DADE2"), unsafe_allow_html=True) 
+        with kpi5: st.markdown(crear_tarjeta_pro("En Ejecución", t_en_ejecucion, "#E67E22"), unsafe_allow_html=True)
+        with kpi6: st.markdown(crear_tarjeta_pro("Pendientes", t_pendientes, "#34495E"), unsafe_allow_html=True)
 
     with tab2:
         st.header("Análisis por Local")
@@ -144,4 +162,4 @@ try:
             st.dataframe(datos_local[columnas_mostrar], use_container_width=True, hide_index=True)
 
 except Exception as e:
-    st.error(f"Error cargando la aplicación: {e}")
+    st.error(f"Error en la aplicación: {e}")
