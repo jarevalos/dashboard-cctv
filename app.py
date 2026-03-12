@@ -86,7 +86,7 @@ try:
         df_mostrar = df.copy()
 
         # ==========================================
-        # LÓGICA DE KPIs
+        # LÓGICA DE KPIs (TARJETAS)
         # ==========================================
         
         # 1. Filtro base de Casos Abiertos (Backlog)
@@ -98,22 +98,31 @@ try:
             filtro_abiertos = pd.Series(False, index=df_mostrar.index)
             t_abiertos = 0
 
-        # 2. CCTV: Casos abiertos + GRUPO_ASIGNADO específico
+        # 2. Filtros específicos por GRUPO_ASIGNADO (Columna U)
         if 'GRUPO_ASIGNADO' in df_mostrar.columns:
+            # Definimos los textos exactos
             grupo_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
-            # Aplicamos ambos filtros al mismo tiempo
-            filtro_grupo_cctv = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == grupo_cctv
-            t_cctv = len(df_mostrar[filtro_abiertos & filtro_grupo_cctv])
+            grupo_dcero = 'Soporte Dcero'
+            
+            # Creamos los filtros cruzados
+            filtro_cctv = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == grupo_cctv
+            filtro_dcero = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == grupo_dcero
+            
+            # Contamos aplicando ambas reglas: Que esté abierto Y pertenezca al grupo
+            t_cctv = len(df_mostrar[filtro_abiertos & filtro_cctv])
+            t_dcero = len(df_mostrar[filtro_abiertos & filtro_dcero])
         else:
             t_cctv = 0
+            t_dcero = 0
 
-        # Resto de KPIs
-        t_dcero = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('DCERO', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
+        # 3. Resto de KPIs
+        # Dejé SECOMP con la regla antigua hasta que me confirmes su nombre exacto en la columna U
         t_secomp = len(df_mostrar[df_mostrar['PROVEDDOR'].astype(str).str.contains('SECOMP', case=False, na=False)]) if 'PROVEDDOR' in df_mostrar.columns else 0
+        
         t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
-        # --- FILA DE TARJETAS ---
+        # --- DIBUJAR LAS TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#D92B38"), unsafe_allow_html=True) 
         with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) 
