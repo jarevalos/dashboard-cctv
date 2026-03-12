@@ -78,7 +78,7 @@ try:
         # ==========================================
         # LÓGICA DE KPIs (TARJETAS)
         # ==========================================
-        # 1. Filtro base: Solo los que están en gestión activa
+        # 1. Filtro base de Casos Abiertos (Backlog)
         if 'ESTADO_SN' in df_mostrar.columns:
             estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
             filtro_abiertos = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
@@ -93,7 +93,7 @@ try:
             g_dcero = 'Soporte Dcero'
             g_secomp = 'Soporte Secomp'
             
-            # Contamos cruzando: Abierto Y Grupo específico
+            # Contamos cruzando: Abierto Y Grupo específico en Columna U
             t_cctv = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_cctv)])
             t_dcero = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_dcero)])
             t_secomp = len(df_mostrar[filtro_abiertos & (df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip() == g_secomp)])
@@ -104,7 +104,7 @@ try:
         t_ejecucion = len(df_mostrar[df_mostrar['ESTADO_SN'].str.upper() == 'EN PROCESO']) if 'ESTADO_SN' in df_mostrar.columns else 0
         t_sin_estado = len(df_mostrar[df_mostrar['ESTADO_SN'] == '']) if 'ESTADO_SN' in df_mostrar.columns else 0
 
-        # --- FILA DE TARJETAS ---
+        # --- DIBUJAR LAS TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         with kpi1: st.markdown(crear_tarjeta("Casos Abiertos", t_abiertos, "#D92B38"), unsafe_allow_html=True) 
         with kpi2: st.markdown(crear_tarjeta("CCTV", t_cctv, "#1F4E79"), unsafe_allow_html=True) 
