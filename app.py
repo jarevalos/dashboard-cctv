@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import plotly.express as px
+from datetime import datetime
 
 # 1. Configuración de la página
 st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
@@ -11,61 +13,23 @@ st.set_page_config(page_title="Dashboard CCTV", page_icon="📹", layout="wide")
 # ==========================================
 st.markdown("""
     <style>
-    /* Fondo gris suave profesional */
     .stApp { background-color: #F8F9FB !important; }
+    .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; max-width: 95% !important; }
     
-    /* Eliminar espacios superiores al máximo */
-    .block-container { 
-        padding-top: 0rem !important; 
-        padding-bottom: 0rem !important; 
-        max-width: 95% !important; 
-    }
-    
-    /* Contenedor de Tarjeta Mejorada */
     .card-container {
         background-color: white;
         padding: 12px 10px;
         border-radius: 10px;
         border-bottom: 4px solid #E0E4E8;
         box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-        transition: transform 0.2s;
         text-align: center;
         margin-bottom: 10px;
     }
-    
-    .card-container:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.05);
-    }
+    .card-label { margin: 0; font-size: 0.65rem !important; color: #7F8C8D; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+    .card-value { margin: 0; font-size: 1.6rem !important; color: #2C3E50; font-weight: 800; line-height: 1.1; }
 
-    /* Títulos de tarjetas (Mini y elegantes) */
-    .card-label {
-        margin: 0;
-        font-size: 0.65rem !important;
-        color: #7F8C8D;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-    }
-    
-    /* Valores numéricos (Claridad absoluta) */
-    .card-value {
-        margin: 0;
-        font-size: 1.6rem !important;
-        color: #2C3E50;
-        font-weight: 800;
-        line-height: 1.1;
-    }
-
-    /* Ocultar elementos de Streamlit */
     header {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* Ajuste de pestañas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        margin-bottom: 15px;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -83,20 +47,20 @@ def cargar_datos():
     data = worksheet.get_all_records()
     df = pd.DataFrame(data)
 
-    # --- FILTRO MAESTRO GLOBAL ---
-    col_estado = 'ESTADO_SN'          
-    col_atencion = 'ESTADO_ATENCION'  
+    # --- LIMPIEZA INICIAL ---
+    df['ESTADO_SN'] = df['ESTADO_SN'].astype(str).str.strip().upper()
+    df['ESTADO_ATENCION'] = df['ESTADO_ATENCION'].astype(str).str.strip().upper()
 
-    if col_estado in df.columns:
-        df[col_estado] = df[col_estado].astype(str).str.strip() 
-        estados_excluidos = ['CERRADO', 'CERRADO COMPLETO', 'RESUELTO', 'CERRADO INCOMPLETO', 'REVISAR']
-        df = df[~df[col_estado].str.upper().isin(estados_excluidos)]
+    # --- FILTRO MAESTRO (REGLAS KOKE) ---
+    # 1. Columna N: Solo Asignado, En Progreso, En Espera
+    estados_validos = ['ASIGNADO', 'EN PROGRESO', 'EN ESPERA']
+    df_filtrado = df[df['ESTADO_SN'].isin(estados_validos)].copy()
     
-    if col_atencion in df.columns:
-        df[col_atencion] = df[col_atencion].astype(str).str.strip()
-        df = df[df[col_atencion].str.upper() != 'OTRO SERVICIO']
+    # 2. Columna O: Excluir DUPLICADO y OTRO SERVICIO
+    excluir_atencion = ['DUPLICADO', 'OTRO SERVICIO']
+    df_filtrado = df_filtrado[~df_filtrado['ESTADO_ATENCION'].isin(excluir_atencion)]
 
-    return df
+    return df_filtrado
 
 def crear_tarjeta_pro(titulo, valor, color_top):
     html = f"""
@@ -113,37 +77,20 @@ try:
     tab1, tab2 = st.tabs(["📊 Vista Ejecutiva", "🏢 Detalle por Local"])
     
     with tab1:
-        df_mostrar = df.copy()
+        # --- CÁLCULO DE KPIs ---
+        t_total_abiertos = len(df)
+        
+        # Filtros por GRUPO_ASIGNADO (Columna U)
+        df['GRUPO_ASIGNADO'] = df['GRUPO_ASIGNADO'].astype(str).str.strip()
+        t_cctv = len(df[df['GRUPO_ASIGNADO'] == 'Soporte Circuito Cerrado de Televisin (CCTV)'])
+        t_dcero = len(df[df['GRUPO_ASIGNADO'] == 'Soporte Dcero'])
+        t_secomp = len(df[df['GRUPO_ASIGNADO'] == 'Soporte Secomp'])
+        t_en_ejecucion = t_dcero + t_secomp
+        
+        # Pendientes (Columna S vacía)
+        t_pendientes = len(df[df['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])])
 
-        # Lógica de estados y grupos
-        if 'ESTADO_SN' in df_mostrar.columns:
-            estados_backlog = ['ASIGNADO', 'EN ESPERA', 'EN PROGRESO']
-            filtro_gestion = df_mostrar['ESTADO_SN'].str.upper().isin(estados_backlog)
-            t_total_abiertos = len(df_mostrar[filtro_gestion])
-        else:
-            filtro_gestion = pd.Series(False, index=df_mostrar.index)
-            t_total_abiertos = 0
-
-        if 'GRUPO_ASIGNADO' in df_mostrar.columns:
-            df_mostrar['GRUPO_ASIGNADO'] = df_mostrar['GRUPO_ASIGNADO'].astype(str).str.strip()
-            g_cctv = 'Soporte Circuito Cerrado de Televisin (CCTV)'
-            g_dcero = 'Soporte Dcero'
-            g_secomp = 'Soporte Secomp'
-            
-            t_cctv = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_cctv)])
-            t_dcero = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_dcero)])
-            t_secomp = len(df_mostrar[filtro_gestion & (df_mostrar['GRUPO_ASIGNADO'] == g_secomp)])
-            t_en_ejecucion = t_dcero + t_secomp
-        else:
-            t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
-
-        if 'PROVEDDOR' in df_mostrar.columns:
-            filtro_prov_vacio = df_mostrar['PROVEDDOR'].astype(str).str.strip().isin(['', 'nan', 'None'])
-            t_pendientes = len(df_mostrar[filtro_gestion & filtro_prov_vacio])
-        else:
-            t_pendientes = 0
-
-        # --- FILA DE TARJETAS REDISEÑADAS ---
+        # --- FILA DE TARJETAS ---
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         with kpi1: st.markdown(crear_tarjeta_pro("Casos Abiertos", t_total_abiertos, "#E74C3C"), unsafe_allow_html=True) 
         with kpi2: st.markdown(crear_tarjeta_pro("Soporte CCTV", t_cctv, "#2980B9"), unsafe_allow_html=True) 
@@ -151,6 +98,48 @@ try:
         with kpi4: st.markdown(crear_tarjeta_pro("Soporte Secomp", t_secomp, "#5DADE2"), unsafe_allow_html=True) 
         with kpi5: st.markdown(crear_tarjeta_pro("En Ejecución", t_en_ejecucion, "#E67E22"), unsafe_allow_html=True)
         with kpi6: st.markdown(crear_tarjeta_pro("Pendientes", t_pendientes, "#34495E"), unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ==========================================
+        # GRÁFICO 1: ANTIGÜEDAD DEL REPORTE
+        # ==========================================
+        st.subheader("⏱️ Antigüedad de Reportes Abiertos")
+        
+        if 'FECHA' in df.columns: # Asumiendo que la columna J se llama FECHA
+            # 1. Convertir Columna J a Datetime (formato 28-02-2026 8:22)
+            df['FECHA_DT'] = pd.to_datetime(df['FECHA'], dayfirst=True, errors='coerce')
+            
+            # 2. Calcular días de diferencia con hoy
+            hoy = datetime.now()
+            df['Dias_Abierto'] = (hoy - df['FECHA_DT']).dt.days
+            
+            # 3. Agrupar para el gráfico
+            antiguedad_df = df['Dias_Abierto'].value_counts().reset_index()
+            antiguedad_df.columns = ['Días', 'Cantidad de Reportes']
+            antiguedad_df = antiguedad_df.sort_values(by='Días')
+
+            # 4. Crear gráfico de barras
+            fig_ant = px.bar(
+                antiguedad_df, 
+                x='Días', 
+                y='Cantidad de Reportes',
+                text_auto=True,
+                color_discrete_sequence=['#2980B9']
+            )
+            
+            fig_ant.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=0, r=0, t=30, b=0),
+                height=350,
+                xaxis_title="Días transcurridos desde el reporte",
+                yaxis_title="N° de Reportes"
+            )
+            
+            st.plotly_chart(fig_ant, use_container_width=True)
+        else:
+            st.warning("No se encontró la columna de fecha (Columna J). Revisa el nombre en el Excel.")
 
     with tab2:
         st.header("Análisis por Local")
