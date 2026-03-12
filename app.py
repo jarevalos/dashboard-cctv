@@ -82,9 +82,13 @@ try:
         col_u = 'GRUPO_ASIGNADO'
         if col_u in df.columns:
             df[col_u] = df[col_u].astype(str).str.strip()
-            t_cctv = len(df[df[col_u] == 'Soporte Circuito Cerrado de Televisin (CCTV)'])
-            t_dcero = len(df[df[col_u] == 'Soporte Dcero'])
-            t_secomp = len(df[df[col_u] == 'Soporte Secomp'])
+            g_cctv_txt = 'Soporte Circuito Cerrado de Televisin (CCTV)'
+            g_dcero_txt = 'Soporte Dcero'
+            g_secomp_txt = 'Soporte Secomp'
+            
+            t_cctv = len(df[df[col_u] == g_cctv_txt])
+            t_dcero = len(df[df[col_u] == g_dcero_txt])
+            t_secomp = len(df[df[col_u] == g_secomp_txt])
             t_en_ejecucion = t_dcero + t_secomp
         else:
             t_cctv = t_dcero = t_secomp = t_en_ejecucion = 0
@@ -106,45 +110,57 @@ try:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # ==========================================
-        # GRÁFICO 1: ANTIGÜEDAD POR MES (COLUMNA J)
-        # ==========================================
-        col_j = 'FECHA_REPORTE' # Asegúrate que este sea el nombre de la columna J
-        
-        if col_j in df.columns:
-            # 1. Convertir a fecha
-            df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
-            df_fechas = df.dropna(subset=['FECHA_DT']).copy()
-            
-            # 2. Crear etiqueta de Mes/Año y valor para ordenar
-            # Usamos el nombre del mes abreviado y el año (ej: ago 25)
-            df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
-            df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
-            
-            # 3. Agrupar
-            mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad')
-            mensual_df = mensual_df.sort_values('Orden')
+        # ========================================================
+        # FILA DE GRÁFICOS (MESES Y GRUPOS ASIGNADOS)
+        # ========================================================
+        graf_col1, graf_col2 = st.columns(2)
 
-            # 4. Gráfico
-            fig_mes = px.bar(
-                mensual_df, x='Periodo', y='Cantidad',
-                title="<b>Pendientes por Mes de Apertura</b>",
-                text_auto=True,
-                color_discrete_sequence=['#008080'] # Color similar a la imagen
-            )
-            
-            fig_mes.update_layout(
-                paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)',
-                height=300, margin=dict(l=10, r=10, t=50, b=10),
-                xaxis_title=None, yaxis_title=None,
-                showlegend=False
-            )
-            fig_mes.update_traces(textposition='outside', marker_line_width=0)
-            fig_mes.update_yaxes(showgrid=True, gridcolor='#f0f0f0')
+        # --- GRÁFICO 1: MESES (Izquierda) ---
+        col_j = 'FECHA_REPORTE' 
+        with graf_col1:
+            if col_j in df.columns:
+                df['FECHA_DT'] = pd.to_datetime(df[col_j], dayfirst=True, errors='coerce')
+                df_fechas = df.dropna(subset=['FECHA_DT']).copy()
+                df_fechas['Periodo'] = df_fechas['FECHA_DT'].dt.strftime('%b %y').str.lower()
+                df_fechas['Orden'] = df_fechas['FECHA_DT'].dt.to_period('M')
+                mensual_df = df_fechas.groupby(['Orden', 'Periodo']).size().reset_index(name='Cantidad')
+                mensual_df = mensual_df.sort_values('Orden')
 
-            st.plotly_chart(fig_mes, use_container_width=True)
-        else:
-            st.info(f"Columna J ('{col_j}') no encontrada.")
+                fig_mes = px.bar(mensual_df, x='Periodo', y='Cantidad', title="<b>Pendientes por Mes de Apertura</b>", text_auto=True, color_discrete_sequence=['#008080'])
+                fig_mes.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
+                fig_mes.update_traces(textposition='outside')
+                st.plotly_chart(fig_mes, use_container_width=True)
+
+        # --- GRÁFICO 2: PROVEEDORES VS CCTV (Derecha) ---
+        with graf_col2:
+            if col_u in df.columns:
+                # Lógica de agrupación
+                def agrupar_grupos(fila):
+                    if fila in [g_dcero_txt, g_secomp_txt]:
+                        return 'Externos (Dcero + Secomp)'
+                    elif fila == g_cctv_txt:
+                        return 'Interno (CCTV)'
+                    else:
+                        return 'Otros/Sin Grupo'
+
+                df['Categoria_Grupo'] = df[col_u].apply(agrupar_grupos)
+                # Solo tomamos los que nos interesan
+                resumen_grupo = df[df['Categoria_Grupo'] != 'Otros/Sin Grupo']['Categoria_Grupo'].value_counts().reset_index()
+                resumen_grupo.columns = ['Grupo', 'Cantidad']
+
+                fig_grp = px.bar(
+                    resumen_grupo, x='Grupo', y='Cantidad', 
+                    title="<b>Distribución: Externos vs CCTV</b>", 
+                    text_auto=True, 
+                    color='Grupo',
+                    color_discrete_map={
+                        'Externos (Dcero + Secomp)': '#F39C12', # Naranja/Oro
+                        'Interno (CCTV)': '#2980B9'           # Azul
+                    }
+                )
+                fig_grp.update_layout(paper_bgcolor='white', plot_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=10, r=10, t=50, b=10), showlegend=False)
+                fig_grp.update_traces(textposition='outside')
+                st.plotly_chart(fig_grp, use_container_width=True)
 
     with tab2:
         st.header("Análisis por Local")
